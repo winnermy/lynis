@@ -1,0 +1,9 @@
+Name: Cracklib password strength checking
+Default: yes
+Priority: 1024
+Conflicts: unix-zany
+Password-Type: Primary
+Password:
+	requisite			pam_cracklib.so upper_min=-1 other_min=-1 digit_min=-1 lower_min=-1
+Password-Initial:
+	requisite			pam_cracklib.so upper_min=-1 other_min=-1 digit_min=-1 lower_min=-1

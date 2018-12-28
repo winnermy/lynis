@@ -1,0 +1,778 @@
+#!/bin/sh
+
+#################################################################################
+#
+    InsertSection "Authentication"
+#
+#################################################################################
+#
+    
+    
+    # Test        : AUTH-9328
+    # Description : Check default umask in common files (modified by kylin)
+    Register --test-no AUTH-9328 --weight L --network NO --description "Default umask values"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        Display --indent 2 --text "- Determining default umask"
+
+        # umask check for KYLIN system
+        KYCHECK_UMAK="/etc/csh.cshrc /etc/csh.login /etc/bashrc /etc/bash.bashrc /etc/profile"
+        logtext "Test: Checking umask for KYLIN"
+        for I in $KYCHECK_UMAK; do
+            if [ -f $I ]; then
+                logtext "Result: file $I exists"
+                logtext "Test: Checking umask value in $I"
+                FIND=`cat $I | grep -v "^#" | grep umask | awk '{print $2}'`
+                if [ "$FIND" != "" ]; then
+                    logtext "Result: found umask in $I , value is $FIND"
+                    if [ "${FIND}" = "077" ]; then
+                        Display --indent 4 --text "- Checking umask ($I)" --result OK --color GREEN
+                        AddHP 2 2
+                      else
+                        Display --indent 4 --text "- Checking umask ($I)" --result SUGGESTION --color YELLOW
+                        ReportSuggestion ${TEST_NO} "Default umask in $I could be more strict like 077"
+                        AddHP 1 2
+                    fi
+                  else
+                    logtext "Result: not found umask in $I"
+                    Display --indent 4 --text "- Checking umask ($I)" --result "NOT FOUND" --color YELLOW
+                    ReportSuggestion ${TEST_NO} "Default umask in $I could be set like 077"
+                    AddHP 0 2
+                fi
+              else
+                logtext "Result: $I does not exist"
+            fi
+        done
+
+        # /etc/login.defs
+        logtext "Test: Checking /etc/login.defs"
+        if [ -f /etc/login.defs ]; then
+            logtext "Result: file /etc/profile exists"
+            logtext "Test: Checking umask value in /etc/login.defs"
+            FIND=`grep "^UMASK" /etc/login.defs | awk '{ print $2 }'`
+            if [ "${FIND}" = "" ]; then
+                logtext "Result: umask value is not configured (most likely it will have the default 022 value)"
+                Display --indent 4 --text "- Checking umask (/etc/login.defs)" --result SUGGESTION --color YELLOW
+                ReportSuggestion ${TEST_NO} "Default umask in /etc/login.defs could not be found and defaults usually to 022, which could be more strict like 027"
+                AddHP 1 2
+            elif [ "${FIND}" = "077" -o "${FIND}" = "027" ]; then
+                logtext "Result: umask is ${FIND}, which is fine"
+                Display --indent 4 --text "- Checking umask (/etc/login.defs)" --result OK --color GREEN
+                AddHP 2 2
+              else
+                logtext "Result: found umask ${FIND}, which could be improved"
+                Display --indent 4 --text "- Checking umask (/etc/login.defs)" --result SUGGESTION --color YELLOW
+                ReportSuggestion ${TEST_NO} "Default umask in /etc/login.defs could be more strict like 027"
+                AddHP 0 2
+            fi
+          else
+            logtext "Result: file /etc/login.defs does not exist"
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : AUTH-9336
+    # Description : Check securetty for root login (add by kylin)
+    Register --test-no AUTH-9336 --weight L --network NO --description "Checking securetty for root login"
+    if [ ${SKIPTEST} -eq 0 ]; then
+    logtext "Test: checking securetty for root login"
+        FIND=`cat /etc/pam.d/login | grep "^auth" | grep pam_securetty.so`
+        if [ "$FIND" != "" ]; then
+            logtext "Result: FOUND securetty setting for root login"
+            Display --indent 2 --text "- Checking securetty for root login" --result "ENABLED" --color GREEN
+            AddHP 1 1
+          else
+            logtext "Result: NOT found securetty setting for root login"
+            Display --indent 2 --text "- Checking securetty for root login" --result "NOT ENABLED" --color WHITE
+            AddHP 0 1
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : AUTH-9410
+    # Description : Check PAM su root group restrict(add by kylin)
+    Register --test-no AUTH-9410 --weight L --network NO --description "Check pam_wheel.so support"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: checking pam_wheel.so restrict"
+        if [ -f /etc/pam.d/su ]; then
+            logtext "Result: Found PAM conf for su"
+            FIND=`cat /etc/pam.d/su | grep "^auth" | grep "pam_wheel"`
+            if [ "$FIND" != "" ]; then
+                logtext "Result: restrict su root support"
+                Display --indent 2 --text "- Checking restrict su root support" --result "ENABLED" --color GREEN
+              else
+                logtext "Result: restrict su root support"
+                Display --indent 2 --text "- Checking restrict su root support" --result "NOT ENABLED" --color WHITE
+            fi
+          else
+            logtext "Result: NO PAM conf for su found"
+            Display --indent 2 --text "- Checking restrict su root support" --result "NO CONFIG" --color RED
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : AUTH-9414
+    # Description : Check history config restrict(add by kylin)
+    Register --test-no AUTH-9414 --weight L --network NO --description "Check history config restrict"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: check history config restrict"
+        Display --indent 2 --text "- Checking history config restrict"
+        if [ -f /etc/profile ]; then
+            logtext "Result: Found /etc/profile"
+            FIND1=`cat /etc/profile | grep "^HISTSIZE" | awk -F= '{ print $2 }'`
+            FIND2=`cat /etc/profile | grep "^HISTFILESIZE" | awk -F= '{ print $2 }'`
+            # HISTSIZE
+            logtext "Test: check HISTSIZE"
+            if [ "$FIND1" != "" ]; then
+                if [ $FIND1 -le 5 ]; then
+                    logtext "Result: HISTSIZE enable"
+                    Display --indent 4 --text "- Checking HISTSIZE" --result "ENABLE" --color GREEN
+                  else
+                    logtext "Result HISTSIZE too big"
+                    Display --indent 4 --text "- Checking HISTSIZE" --result "SUGGESTION" --color YELLOW
+                    ReportSuggestion ${TEST_NO} "HISTSIZE could be set less than 5"
+                fi
+              else
+                logtext "Result: HISTSIZE not enable"
+                Display --indent 4 --text "- Checking HISTSIZE" --result "NOT ENABLE" --color WHITE
+                ReportSuggestion ${TEST_NO} "HISTSIZE could be set less than 5"
+            fi
+            # HISTFILESIZE
+            logtext "Test: check HISTFILESIZE"
+            if [ "$FIND2" != "" ]; then
+                if [ $FIND2 -le 5 ]; then
+                    logtext "Result: HISTFILESIZE enable"
+                    Display --indent 4 --text "- Checking HISTFILESIZE" --result "ENABLE" --color GREEN
+                  else
+                    logtext "Result: HISTFILESIZE too big"
+                    Display --indent 4 --text "- Checking HISTFILESIZE" --result "SUGGESTION" --color GREEN
+                    ReportSuggestion ${TEST_NO} "HISTFILESIZE could be set less than 5"
+                fi
+              else
+                logtext "Result: HISTFILESIZE not enable"
+                Display --indent 4 --text "- Checking HISTFILESIZE" --result "NOT ENABLE" --color WHITE
+                ReportSuggestion ${TEST_NO} "HISTFILESIZE could be set less than 5"
+            fi
+          else
+            logtext "Result: NOT found /etc/profile"
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : AUTH-9418
+    # Description : Check authentication failed attempts restrict(add by kylin)
+    Register --test-no AUTH-9418 --weight L --network NO --description "Check authentication failed attempts restrict"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: check authentication failed attempts restrict"
+        FIND=`cat /etc/pam.d/common-auth | grep ^auth | grep pam_tally`
+        if [ "$FIND" != "" ]; then
+            logtext "Result: access failed attempts ENABLE"
+            Display --indent 2 --text "- Checking authentication failed attempts restrict" --result "ENABLE" --color GREEN
+          else
+            logtext "Result: access failed attempts NOT enable"
+            Display --indent 2 --text "- Checking authentication failed attempts restrict" --result "NOT ENABLE" --color WHITE
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : AUTH-9422
+    # Description : Check system alias file(add by kylin)
+    Register --test-no AUTH-9422 --weight L --network NO --description "Check system alias files"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: check system alias files"
+        if [ -f /etc/aliases -o -f /etc/mail/aliases ]; then
+            logtext "Result: alias file exists!"
+            Display --indent 2 --text "- Checking alias file" --result "FOUND" --color WHITE
+          else
+            logtext "Result: alias file not exists!"
+            Display --indent 2 --text "- Checking alias file" --result "NOT FOUND" --color GREEN
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : AUTH-9426
+    # Description : Check system TMOUT(add by kylin)
+    Register --test-no AUTH-9426 --weight L --network NO --description "Check system session TMOUT"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: check system session TMOUT"
+        if [ -f /etc/profile ]; then
+            logtext "Result: /etc/profile file exists!"
+            logtext "Test: check TMOUT setting"
+            FIND=`cat /etc/profile | grep -v "^#" | grep TMOUT | awk -F= '{ print $2 }'`
+            if [ "$FIND" = "" ]; then
+                logtext "Result: NOT found TMOUT settting!"
+                Display --indent 2 --text "- Checking session TMOUT" --result "NOT ENABLE" --color WHITE
+              else
+                logtext "Result: FOUND TMOUT settting!"
+                Display --indent 2 --text "- Checking session TMOUT" --result "ENABLE" --color GREEN
+            fi
+        fi
+    fi
+#################################################################################
+#
+    InsertSection "Networking"
+#
+#################################################################################
+#
+    # Test        : NETW-3032
+    # Description : Checking for nospoof setting (add by kylin)
+    Register --test-no NETW-3030 --weight L --network NO --description "Checking nospoof setting"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: checking nospoof setting"
+        if [ -f /etc/host.conf ]; then
+            logtext "Result: found host config"
+            logtext "Test: check nospoof setting value"
+            FIND=`cat /etc/host.conf | grep "^nospoof" | awk '{ print $2 }'`
+            if [ "$FIND" = "on" ]; then
+                logtext "Result: nospoof on"
+                Display --indent 2 --text "- Checking spoof setting" --result "OK" --color GREEN
+              else
+                logtext "Result: nospoof off"
+                Display --indent 2 --text "- Checking spoof setting" --result "WARNING" --color YELLOW
+            fi
+          else
+            logtext "Result: NOT found host config"
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : NETW-3034
+    # Description : Checking for multi setting (add by kylin)
+    Register --test-no NETW-3030 --weight L --network NO --description "Checking multi setting"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: checking multi setting"
+        if [ -f /etc/host.conf ]; then
+            logtext "Result: found host config"
+            logtext "Test: check multi setting value"
+            FIND=`cat /etc/host.conf | grep "^multi" | awk '{ print $2 }'`
+            if [ "$FIND" = "off" ]; then
+                logtext "Result: multi off"
+                Display --indent 2 --text "- Checking multi setting" --result "OK" --color GREEN
+              else
+                logtext "Result: multi on"
+                Display --indent 2 --text "- Checking multi setting" --result "WARNING" --color YELLOW
+            fi
+          else
+            logtext "Result: NOT found host config"
+        fi
+    fi
+#################################################################################
+#
+    InsertSection "Password"
+#
+#################################################################################
+#
+# Test        : AUTH-9286
+    # Description : Check user password aging (modified by kylin)
+    if [ -f /etc/login.defs ]; then PREQS_MET="YES"; else PREQS_MET="NO"; fi
+    Register --test-no AUTH-9286 --preqs-met ${PREQS_MET} --weight L --network NO --description "Checking user password aging"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: Checking PASS_MAX_DAYS, PASS_MIN_DAYS, PASS_WARN_AGE option in /etc/login.defs "
+        FIND_MIN=`grep "^PASS_MIN_DAYS" /etc/login.defs | awk '{ if ($1=="PASS_MIN_DAYS") { print $2 } }'`
+        FIND_MAX=`grep "^PASS_MAX_DAYS" /etc/login.defs | awk '{ if ($1=="PASS_MAX_DAYS") { print $2 } }'`
+        FIND_WARN=`grep "^PASS_WARN_AGE" /etc/login.defs | awk '{ if ($1=="PASS_WARN_AGE") { print $2 } }'`
+        if [ "${FIND_MAX}" = "" -o "${FIND_MAX}" = "99999" -o $FIND_MAX -gt 90 ]; then
+            logtext "Result: password max days limits are not configured"
+            Display --indent 2 --text "- Checking user password max days" --result DISABLED --color YELLOW
+            ReportSuggestion ${TEST_NO} "Configure PASS_MAX_DAYS limits to enforce password changing less than 90"
+            AddHP 0 1
+          else
+            logtext "Result: accounts with password aging set are checked against PASS_MAX_DAYS"
+            logtext "Result: value of PASS_MAX_DAYS is ${FIND_MAX}"
+            Display --indent 2 --text "- Checking user password max days" --result OK --color GREEN
+            AddHP 1 1
+        fi
+        if [ "${FIND_MIN}" = "" -o $FIND_MIN -lt 6 ]; then
+            logtext "Result: password min days limits are not configured"
+            Display --indent 2 --text "- Checking user password min days" --result DISABLED --color YELLOW
+            ReportSuggestion ${TEST_NO} "Configure PASS_MIN_DAYS limits to allow password changing at least 6 days"
+            AddHP 0 1
+          else
+            logtext "Result: accounts with password aging set are checked against PASS_MIN_DAYS"
+            logtext "Result: value of PASS_MIN_DAYS is ${FIND_MIN}"
+            Display --indent 2 --text "- Checking user password min days" --result OK --color GREEN
+            AddHP 1 1
+        fi
+        if [ "${FIND_WARN}" = "" -o $FIND_WARN -lt 30 ]; then
+            logtext "Result: password warn age limits are not configured"
+            Display --indent 2 --text "- Checking user password warn age" --result DISABLED --color YELLOW
+            ReportSuggestion ${TEST_NO} "Configure PASS_WARN_AGE to warn user to change password before expired"
+            AddHP 0 1
+          else
+            logtext "Result: accounts with password aging set are checked against PASS_WARN_AGE"
+            logtext "Result: value of PASS_WARN_AGE is ${FIND_WARN}"
+            Display --indent 2 --text "- Checking user password warn age" --result OK --color GREEN
+            AddHP 1 1
+        fi
+    fi
+#
+#################################################################################
+#
+# Test        : AUTH-9262
+    # Description : Search for PAM password strength testing libraries
+    PAM_FILE_LOCATIONS="/lib/i386-linux-gnu/security /lib/security /lib/x86_64-linux-gnu/security /lib64/security /usr/lib/security"
+    Register --test-no AUTH-9262 --weight L --network NO --description "Checking presence password strength testing tools (PAM)"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        FOUND=0
+        FOUND_CRACKLIB=0
+        FOUND_PASSWDQC=0
+
+        # Cracklib
+        logtext "Searching cracklib PAM module"
+        for I in ${PAM_FILE_LOCATIONS}; do
+            if [ -f ${I}/pam_cracklib.so ]; then
+                FOUND_CRACKLIB=1
+                logtext "Result: found pam_cracklib.so (crack library PAM) in ${I}"
+            fi
+        done
+        if [ ${FOUND_CRACKLIB} -eq 1 ]; then
+            logtext "Result: pam_cracklib.so found"
+            report "pam_cracklib=1"
+            AddHP 3 3
+            FOUND=1
+          else
+            logtext "Result: pam_cracklib.so NOT found (crack library PAM)"
+            AddHP 1 3
+        fi
+
+        # Passwd quality control
+        logtext "Searching passwdqc PAM module"
+        for I in ${PAM_FILE_LOCATIONS}; do
+            if [ -f ${I}/pam_passwdqc.so ]; then
+                FOUND_PASSWDQC=1
+                logtext "Result: found pam_passwdqc.so (passwd quality control PAM) in ${I}"
+            fi
+        done
+        if [ ${FOUND_PASSWDQC} -eq 1 ]; then
+            logtext "Result: pam_passwdqc.so found"
+            report "pam_passwdqc=1"
+            AddHP 3 3
+            FOUND=1
+          else
+            logtext "Result: pam_passwdqc.so NOT found (passwd quality control PAM)"
+            AddHP 1 3
+        fi
+
+        if [ ${FOUND} -eq 0 ]; then
+            Display --indent 2 --text "- Checking PAM password strength tools" --result "SUGGESTION" --color YELLOW
+            logtext "Result: no PAM modules for password strength testing found"
+            ReportSuggestion ${TEST_NO} "Install a PAM module for password strength testing like pam_cracklib or pam_passwdqc"
+          else
+            Display --indent 2 --text "- Checking PAM password strength tools" --result OK --color GREEN
+            logtext "Result: found at least one PAM module for password strength testing"
+        fi
+    fi
+#
+#################################################################################
+# 
+    # Test        : CRYP-7906
+    # Description : Check old password setting restrict(add by kylin)
+    Register --test-no CRYP-7906 --weight L --network NO --description "Check old passwd restrict support"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: checking old passwd restrict"
+        if [ -f /etc/pam.d/common-password ]; then
+            logtext "Found common-password"
+            FIND=`cat /etc/pam.d/common-password | grep -v "^#" |grep "pam_unix.so"| grep "remember="`
+            if [ "$FIND" != "" ]; then
+                logtext "Result: Found old passwd setting restrict"
+                Display --indent 2 --text "- Checking old passwd restrict support" --result "ENABLE" --color GREEN
+              else
+                logtext "Result: Found old passwd setting restrict"
+                Display --indent 2 --text "- Checking old passwd restrict support" --result "NOT ENABLE" --color WHITE
+            fi
+          else
+            logtext "NOT found common-password"
+            Display --indent 2 --text "- Checking old passwd restrict support" --result "NO CONF" --color RED
+        fi
+    fi
+#################################################################################
+#
+    InsertSection "Insecure Service"
+#
+#################################################################################
+#
+    # Test        : INSE-8018
+    # Description : Check for telnet presence(add by kylin)
+Register --test-no INSE-8018 --weight L --network NO --description "Check for telnet presence"
+if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: checking telnet presence in system"
+        FIND=`dpkg -l | grep "ii  telnet"`
+        if [ "$FIND" = "" ]; then
+            logtext "Result: telnet not enabled in system"
+            Display --indent 2 --text "- Checking telnet presence" --result "NOT FOUND" --color GREEN
+            AddHP 3 3
+          else
+            logtext "Result: telnet enabled in system"
+            Display --indent 2 --text "- Checking telnet presence" --result WARNING --color RED
+            ReportSuggestion "${TEST_NO}" "Remove telnet in system and use SSH instead"
+            AddHP 1 3
+        fi
+fi
+#
+#################################################################################
+#
+    # Test        : INSE-8020
+    # Description : Check for ftpd presence(add by kylin)
+Register --test-no INSE-8020 --weight L --network NO --description "Check for ftpd presence"
+if [ ${SKIPTEST} -eq 0 ]; then
+    logtext "Test: checking ftpd presence in system"
+    FIND=`dpkg -l | grep "ii  ftp"`
+    if [ "$FIND" = "" ]; then
+        logtext "Result: ftp not enabled in system"
+        Display --indent 2 --text "- Checking ftp presence" --result "NOT FOUND" --color GREEN
+        AddHP 2 2
+      else
+        logtext "Result: ftp enabled in system"
+        Display --indent 2 --text "- Checking ftp presence" --result WARNING --color RED
+        ReportSuggestion "${TEST_NO}" "Remove ftp in system"
+        AddHP 1 2
+    fi
+fi
+#
+#################################################################################
+#
+    # Test        : INSE-8022
+    # Description : Check for snmp presence(add by kylin)
+Register --test-no INSE-8022 --weight L --network NO --description "Check for snmpd presence"
+if [ ${SKIPTEST} -eq 0 ]; then
+    logtext "Test: checking snmp presence in system"
+    FIND=`dpkg -l | grep "ii  snmp"`
+    if [ "$FIND" = "" ]; then
+        logtext "Result: snmp not enabled in system"
+        Display --indent 2 --text "- Checking snmp presence" --result "NOT FOUND" --color GREEN
+        AddHP 2 2
+      else
+        logtext "Result: snmp enabled in system"
+        Display --indent 2 --text "- Checking snmp presence" --result WARNING --color RED
+        ReportSuggestion "${TEST_NO}" "Remove snmp in system"
+        AddHP 1 2
+    fi
+fi
+#
+#################################################################################
+#
+    # Test        : INSE-8024
+    # Description : Check anonymous enable for vsftpd(add by kylin)
+Register --test-no INSE-8024 --weight L --network NO --description "Check anonymous enable for vsftpd"
+if [ ${SKIPTEST} -eq 0 ]; then
+    logtext "Test: checking anonymous enable for vsftpd"
+    if [ -f /etc/vsftpd.conf ]; then
+        FIND=`cat /etc/vsftpd.conf | grep -v "^#" | grep "anonymous_enable=" | awk -F= '{ print $2 }'`
+        if [ "$FIND" = "YES" ]; then
+            logtext "Result: vsftpd anonymous user is enabled"
+            Display --indent 2 --text "- Checking vsftpd anonymous" --result "ENABLE" --color RED
+          else
+            logtext "Result: vsftpd anonymous user is not enabled"
+            Display --indent 2 --text "- Checking vsftpd anonymous" --result "NOT ENABLE" --color GREEN
+        fi
+      else
+        logtext "Result: vsftpd conf not found"
+            Display --indent 2 --text "- Checking vsftpd anonymous" --result "NO CONF" --color WHITE
+    fi
+fi
+#################################################################################
+#
+    InsertSection "SSH"
+#
+#################################################################################
+#
+    # Test        : SSH-7402
+    # Description : Check for a running SSH daemon
+    Register --test-no SSH-7402 --weight L --network NO --description "Check for running SSH daemon"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: Searching for a SSH daemon"
+        IsRunning sshd
+        if [ ${RUNNING} -eq 1 ]; then
+            SSH_DAEMON_RUNNING=1
+            Display --indent 2 --text "- Checking running SSH daemon" --result FOUND --color GREEN
+          else
+            Display --indent 2 --text "- Checking running SSH daemon" --result "NOT FOUND" --color WHITE
+        fi
+    fi
+#
+#################################################################################
+#
+# Test        : SSH-7412
+    # Description : Check SSH PermitRootLogin option
+    if [ ${SSH_DAEMON_RUNNING} -eq 1 ]; then PREQS_MET="YES"; else PREQS_MET="NO"; fi
+    Register --test-no SSH-7412 --preqs-met ${PREQS_MET} --weight L --network NO --description "Check SSH option: PermitRootLogin"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: check PermitRootLogin option"
+        FIND=`cat /etc/ssh/sshd_config | grep "^PermitRootLogin" | awk '{ print $2 }'`
+        if [ "${FIND}" = "yes" -o "${FIND}" = "YES" -o "${FIND}" = "Yes" ]; then
+            logtext "Result: PermitRootLogin is enabled, root can login directly"
+            Display --indent 4 --text "- SSH option: PermitRootLogin" --result WARNING --color RED
+            ReportWarning ${TEST_NO} "M" "Root can directly login via SSH"
+            AddHP 0 3
+          else
+            # YYY add test for DenyUsers root
+            if [ "${FIND}" = "no" -o "${FIND}" = "No" ]; then
+                logtext "Result: PermitRootLogin is disabled. Root can't login directly"
+                Display --indent 4 --text "- SSH option: PermitRootLogin" --result DISABLED --color GREEN
+                AddHP 3 3
+            elif [ "${FIND}" = "without-password" ]; then
+                # Check if password authentication is disabled for root user, so this option is used properly
+                logtext "Result: PermitRootLogin is disabled. Root can't login directly"
+                Display --indent 4 --text "- SSH option: PermitRootLogin (without-password)" --result OK --color GREEN
+                AddHP 3 3
+              else
+                logtext "Result: Value of PermitRootLogin is unknown (not defined)"
+                Display --indent 4 --text "- SSH option: PermitRootLogin" --result DEFAULT --color WHITE
+            fi
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : SSH-7410
+    # Description : Check SSH Banner option (add by kylin)
+    if [ ${SSH_DAEMON_RUNNING} -eq 1 ]; then PREQS_MET="YES"; else PREQS_MET="NO"; fi
+    Register --test-no SSH-7410 --preqs-met ${PREQS_MET} --weight L --network NO --description "Check SSH option: Banner"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: check Banner option"
+        FIND=`cat /etc/ssh/sshd_config | grep "^Banner" | awk '{ print $2 }'`
+        if [ "$FIND" != "" ]; then
+            logtext "Result: Banner is enabled, change it in $FIND if want"
+            Display --indent 4 --text "- SSH option: Banner" --result ENABLED --color GREEN
+            AddHP 1 1
+          else
+            logtext "Result: Banner is disabled, login via ssh will not show the banner"
+            Display --indent 4 --text "- SSH option: Banner" --result DISABLED --color WHITE
+            ReportSuggestion ${TEST_NO} "Set ssh Banner in sshd_config to warn user"
+            AddHP 1 0
+        fi
+    fi
+#################################################################################
+#
+    InsertSection "Logging"
+#
+#################################################################################
+#
+    # Test        : LOGG-2230
+    # Description : Check for a running rsyslog daemon
+    Register --test-no LOGG-2230 --weight L --network NO --description "Check for running RSyslog daemon"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: Searching for RSyslog daemon in process list"
+        IsRunning rsyslogd
+        if [ ${RUNNING} -eq 1 ]; then
+            logtext "Result: Found rsyslogd in process list"
+            Display --indent 2 --text "- Checking RSyslog status" --result FOUND --color GREEN
+            SYSLOG_DAEMON_PRESENT=1
+            RSYSLOG_RUNNING=1
+          else
+            logtext "Result: rsyslogd NOT found in process list"
+            Display --indent 2 --text "- Checking RSyslog status" --result "NOT FOUND" --color WHITE
+        fi
+    fi
+#
+#################################################################################
+#
+    # Test        : LOGG-2232
+    # Description : Check for cron log (add by kylin)
+    if [ -f /etc/rsyslog.d/50-default.conf -a $RSYSLOG_RUNNING = 1 ]; then PREQS_MET="YES"; else PREQS_MET="NO"; fi
+    Register --test-no LOGG-2232 --preqs-met ${PREQS_MET} --weight L --network NO --description "Check for cron log in RSyslog"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: Searching cron log configuration in rsyslog conf"
+        FIND=`cat /etc/rsyslog.d/50-default.conf | grep -v "^#" | grep "cron.*" | awk '{ print $2 }'`
+        if [ "$FIND" != "" ]; then
+            logtext "Result: Found cron log config in rsyslog"
+            Display --indent 4 --text "- Checking cron log in Rsyslog" --result FOUND --color GREEN
+            AddHP 1 1
+          else
+            logtext "Result: cron log config NOT found in rsyslog"
+            Display --indent 4 --text "- Checking cron log in Rsyslog" --result "NOT FOUND" --color WHITE
+            ReportSuggestion ${TEST_NO} "Add cron log config in /etc/rsyslog.d/50-default.conf"
+            AddHP 0 1
+        fi
+    fi
+#################################################################################
+#
+    InsertSection "Hardening"
+#
+#################################################################################
+#
+    # Test        : HRDN-7234
+    # Description : Check for chkrootkit (add by kylin)
+    Register --test-no HRDN-7234 --weight L --network NO --description "Check for chkrootkit"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        logtext "Test: Check if chkrootkit is installed on the system"
+        FIND=`dpkg -l | grep chkrootkit`
+        if [ "$FIND" = "" ]; then
+            logtext "Result: no chkrootkit found"
+            Display --indent 4 --text "- Installed chkrootkit" --result "NOT FOUND" --color RED
+            ReportSuggestion ${TEST_NO} "Harden the system by installing chkrootkit, to provide system from rootkit applications"
+            AddHP 0 1
+          else
+            logtext "Result: found chkrootkit"
+            Display --indent 4 --text "- Installed chkrootkit" --result "FOUND" --color GREEN
+            AddHP 1 1
+        fi
+    fi
+#################################################################################
+#
+    InsertSection "Boot service"
+#
+#################################################################################
+#
+    # Test        : BOOT-5177
+    # Description : Check for Linux boot services (systemd and chkconfig)
+    # Notes       : We skip using chkconfig if systemd is being used.
+    Register --test-no BOOT-5177 --os Linux --weight L --network NO --description "Check for Linux boot and running services"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        CHECKED=0
+        logtext "Test: checking presence systemctl binary"
+        # Determine if we have systemctl on board
+        if [ ! "${SYSTEMCTLBINARY}" = "" ]; then
+            logtext "Result: systemctl binary found, trying that to discover information"
+            # Running services
+            logtext "Searching for running services (systemctl services only)"
+            FIND=`${SYSTEMCTLBINARY} --full --type=service | awk '{ if ($4=="running") { print $1 } }' | awk -F. '{ print $1 }'`
+            N=0
+            report "running_service_tool=systemctl"
+            for I in ${FIND}; do
+                logtext "Found running service: ${I}"
+                report "running_service[]=${I}"
+                N=`expr ${N} + 1`
+            done
+            logtext "Note: Run systemctl --full --type=service to see all services"
+            Display --indent 2 --text "- Check running services (systemctl)" --result "DONE" --color GREEN
+            Display --indent 6 --text "Result: found $N running services"
+            logtext "Result: Found $N enabled services"
+
+            # Services at boot
+            logtext "Searching for enabled services (systemctl services only)"
+            FIND=`${SYSTEMCTLBINARY} list-unit-files --type=service | awk '{ if ($2=="enabled") { print $1 } }' | awk -F. '{ print $1 }'`
+            N=0
+            report "boot_service_tool=systemctl"
+            for I in ${FIND}; do
+                logtext "Found enabled service at boot: ${I}"
+                report "boot_service[]=${I}"
+                N=`expr ${N} + 1`
+            done
+                # add by kylin for unneccessary enable service check
+            UNABLE_SERVICE="kshell time ntalk sendmail klogin printer nfslock echo discard chargen bootps tfpt nfs daytime ypbind ident\
+                            cups avahi-daemon cups-browsed ssh nfs-confg nfs-client.target snmpd pmproxy pmlogger pmie pmcd lvm2-monitor\
+                            lvm2-lvmetad apparmor binfmt-support apache2 scc-service scc-client mysql vsftpd"
+            logtext "Note: Run systemctl list-unit-files --type=service to see all services"
+            Display --indent 2 --text "- Check enabled services at boot (systemctl)" --result "DONE" --color GREEN
+            M=0
+            for I in ${FIND}; do
+                for X in ${UNABLE_SERVICE}; do
+                    if [ "$I" = "$X" ]; then
+                        Display --indent 8 --text "Service $I is unneccessary on boot time"  --result "SUGGESTION" --color YELLOW
+                        logtext "$I service is not neccessary on boot time"
+                        ReportSuggestion ${TEST_NO} "Service $I could be disabled on boot time"
+                        M=`expr ${M} + 1`
+                    fi
+                done
+            done
+            Display --indent 6 --text "Result: found $N enabled services except $M odd"
+            logtext "Result: Found $N running services"
+
+          else
+            logtext "Result: systemctl binary not found, checking chkconfig binary"
+            if [ ! "${CHKCONFIGBINARY}" = "" ]; then
+                logtext "Result: chkconfig binary found, trying that to discover information"
+                logtext "Searching for services at startup (chkconfig, runlevel 3 and 5)"
+                FIND=`${CHKCONFIGBINARY} --list | egrep '3:on|5:on' | awk '{ print $1 }'`
+                N=0
+                report "boot_service_tool=chkconfig"
+                for I in ${FIND}; do
+                    logtext "Found service (at boot, runlevel 3 or 5): ${I}"
+                    report "boot_service[]=${I}"
+                    N=`expr ${N} + 1`
+                done
+                logtext "Suggestion: Run chkconfig --list to see all services and disable unneeded services"
+                Display --indent 2 --text "- Check services at startup (chkconfig)" --result "DONE" --color GREEN
+                Display --indent 8 --text "Result: found $N services"
+                logtext "Result: Found $N services at startup"
+              else
+                logtext "Result: both systemctl and chkconfig not found. Skipping this test"
+            fi
+        fi
+    fi
+
+#
+#################################################################################
+#
+    
+    InsertSection "File Permissions"
+#
+#################################################################################
+#
+    # Test        : FILE-7524
+    # Description : Perform file permissions check
+    Register --test-no FILE-7524 --weight L --network NO --description "Perform file permissions check"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        Display --indent 2 --text "- Starting file permissions check"
+        logtext "Test: Checking file permissions"
+        logtext "Using profile ${PROFILE} for baseline."
+        FIND=`cat ${PROFILE} | egrep '^permfile:|^permdir:' | cut -d: -f2`
+        for I in ${FIND}; do
+            logtext "Checking ${I}"
+            CheckFilePermissions ${I}
+            logtext "  Expected permissions: ${PROFILEVALUE}"
+            logtext "  Actual permissions: ${FILEVALUE}"
+            logtext "  Result: $PERMS"
+            if [ "${PERMS}" = "FILE_NOT_FOUND" ]; then
+                Display --indent 4 --text "${I}" --result "NOT FOUND" --color WHITE
+              elif [ "${PERMS}" = "OK" ]; then
+                Display --indent 4 --text "${I}" --result OK --color GREEN
+              elif [ "${PERMS}" = "BAD" ]; then
+                Display --indent 4 --text "${I}" --result WARNING --color RED
+                ReportWarning ${TEST_NO} "M" "Incorrect permissions for file ${I}"
+              else
+                logtext "UNKNOWN status for file"
+          fi
+        done
+    fi
+#################################################################################
+#
+    InsertSection "Kernel Hardening"
+#
+#################################################################################
+#
+    # Test        : KRNL-6000
+    # Description : Check sysctl parameters
+    # Sysctl      : net.ipv4.icmp_ingore_bogus_error_responses (=1)
+    if [ ! "${SYSCTL_READKEY}" = "" ]; then PREQS_MET="YES"; else PREQS_MET="NO"; fi
+    Register --test-no KRNL-6000 --preqs-met ${PREQS_MET} --weight L --network NO --description "Check sysctl key pairs in scan profile"
+    if [ ${SKIPTEST} -eq 0 ]; then
+        N=0
+        Display --indent 2 --text "- Comparing sysctl key pairs with scan profile"
+        FIND=`grep "^sysctl:" ${PROFILE} | sed 's/ /:space:/g'`
+        for I in ${FIND}; do
+            tFINDkey=`echo ${I} | awk -F: '{ print $2 }'`
+            tFINDexpvalue=`echo ${I} | awk -F: '{ print $3 }'`
+            tFINDhp=`echo ${I} | awk -F: '{ print $4 }' | grep "[0-9]"`
+            tFINDdesc=`echo ${I} | awk -F: '{ print $5 }' | sed 's/:space:/ /g'`
+            tFINDcurvalue=`${SYSCTL_READKEY} ${tFINDkey} 2> /dev/null`
+            if [ ! "${tFINDcurvalue}" = "" ]; then
+                if [ "${tFINDexpvalue}" = "${tFINDcurvalue}" ]; then
+                    logtext "Result: sysctl key ${tFINDkey} contains equal expected and current value (${tFINDexpvalue})"
+                    Display --indent 4 --text "- ${tFINDkey} (exp: ${tFINDexpvalue})" --result OK --color GREEN
+                    AddHP ${tFINDhp} ${tFINDhp}
+                  else
+                    logtext "Result: sysctl key ${tFINDkey} has a different value than expected in scan profile. Expected=${tFINDexpvalue}, Real=${tFINDcurvalue}"
+                    Display --indent 4 --text "- ${tFINDkey} (exp: ${tFINDexpvalue})" --result DIFFERENT --color RED
+                    AddHP 0 ${tFINDhp}
+                    N=1
+                fi
+              else
+                logtext "Result: key ${tFINDkey} does not exist on this machine"
+            fi
+        done
+
+        # Add suggestion if one or more sysctls have a different value than scan profile
+        if [ ${N} -eq 1 ]; then
+            ReportSuggestion ${TEST_NO} "One or more sysctl values differ from the scan profile and could be tweaked"
+        fi
+    fi
+
+wait_for_keypress

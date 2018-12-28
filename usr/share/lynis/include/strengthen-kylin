@@ -1,0 +1,371 @@
+#!/bin/sh
+
+# password strength
+logtextbreak
+logtext "Start password strength enhence"
+cat /etc/pam.d/common-password | grep "^password" | grep cracklib | grep upper_min > /dev/null
+if [ $? != 0 ]; then
+    if [ -d $KYLINDIR/cracklib ]; then
+        logtext "Installing password strength packages..."
+        dpkg -i $KYLINDIR/cracklib/*.deb > /dev/null
+        cp $KYLINDIR/cracklib/cracklib /usr/share/pam-configs/
+        logtext "Password should contain four class charaters:upper, low, digit, other"
+        pam-auth-update --add cracklib
+        logtext "password strength OK"
+        Display --indent 4 --text "Password strength enhence" --result "SUCCESS" --color GREEN
+      else
+        logtext "password strength enhence config NOT found"
+        Display --indent 4 --text "Password strength enhence" --result "NO CONFIG" --color WHITE
+    fi
+  else
+    logtext "password strength already set"
+    Display --indent 4 --text "Password strength enhence" --result "SUCCESS" --color GREEN    
+fi
+
+
+# password aging
+logtextbreak
+logtext "Start password aging strengthen"
+logtext "Set PASS_MAX_DAYS to 90"
+cat /etc/login.defs | grep "^PASS_MAX_DAYS" > /dev/null
+if [ $? != 0 ]; then
+    echo "PASS_MAX_DAYS    90" >> /etc/login.defs
+  else
+    sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS    90/g' /etc/login.defs
+fi
+Display --indent 4 --text "PASS_MAX_DAYS strengthen" --result "SUCCESS" --color GREEN
+
+logtext "Set PASS_MIN_DAYS to 6"
+cat /etc/login.defs | grep "^PASS_MIN_DAYS" > /dev/null
+if [ $? != 0 ]; then
+    echo "PASS_MIN_DAYS    6" >> /etc/login.defs
+  else
+    sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS    6/g' /etc/login.defs
+fi
+Display --indent 4 --text "PASS_MIN_DAYS strengthen" --result "SUCCESS" --color GREEN
+
+logtext "Set PASS_WARN_AGE to 30"
+cat /etc/login.defs | grep "^PASS_WARN_AGE" > /dev/null
+if [ $? != 0 ]; then
+    echo "PASS_WARN_AGE    30" >> /etc/login.defs
+  else
+    sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE    30/g' /etc/login.defs
+fi
+logtext "Password aging strengthen OK"
+Display --indent 4 --text "PASS_WARN_AGE strengthen" --result "SUCCESS" --color GREEN
+
+
+# password history restrict
+logtextbreak
+logtext "Start password history restrict"
+cat /etc/pam.d/common-auth | grep -v "^#" |grep "pam_unix.so"| grep "remember=5" > /dev/null
+logtext "History 5 password are not allowed"
+if [ $? != 0 ]; then
+    sed -i '/pam_unix.so/s/$/ remember=5/g' /etc/pam.d/common-auth
+fi
+logtext "Password history restrict OK"
+Display --indent 4 --text "Password history restrict" --result "SUCCESS" --color GREEN
+
+
+# UMASK
+logtextbreak
+logtext "Start system UMASK strengthen"
+logtext "set UMASK 027 in /etc/login.defs"
+cat /etc/login.defs | grep "^UMASK" > /dev/null
+if [ $? != 0 ]; then
+    echo "UMASK    027" >> /etc/login.defs
+  else
+    sed -i 's/^UMASK.*/UMASK    027/g' /etc/login.defs
+fi
+KYUMAK="/etc/csh.cshrc /etc/csh.login /etc/bashrc /etc/bash.bashrc /etc/profile"
+for I in $KYUMAK; do
+    if [ -f $I ]; then
+        sed -i '/umask/d' $I
+        sed -i '/UMASK/d' $I
+        logtext "set umask 077 in $I"
+        echo "umask 077" >> $I
+    fi
+done
+logtext "System UMASK strengthen OK"
+Display --indent 4 --text "UMASK strengthen" --result "SUCCESS" --color GREEN
+
+
+# file permissions
+logtextbreak
+logtext "Start strengthen important system files permission"
+logtext "chmod 644 /etc/passwd"
+chmod 644 /etc/passwd           2> /dev/null
+logtext "chmod 600 /etc/xinetd.conf"
+chmod 600 /etc/xinetd.conf      2> /dev/null
+logtext "chmod 644 /etc/group"
+chmod 644 /etc/group            2> /dev/null
+logtext "chmod 640 /etc/shadow"
+chmod 640 /etc/shadow           2> /dev/null
+logtext "chmod 644 /etc/services"
+chmod 644 /etc/services         2> /dev/null
+logtext "chmod 750 /etc/rc*.d"
+chmod 750 /etc/rc0.d            2> /dev/null
+chmod 750 /etc/rc1.d            2> /dev/null
+chmod 750 /etc/rc2.d            2> /dev/null
+chmod 750 /etc/rc3.d            2> /dev/null
+chmod 750 /etc/rc4.d            2> /dev/null
+chmod 750 /etc/rc5.d            2> /dev/null
+chmod 750 /etc/rc6.d            2> /dev/null
+logtext "chmod 600 grub.cfg"
+chmod 600 /etc/grub.conf        2> /dev/null
+chmod 600 /boot/grub/grub.cfg   2> /dev/null
+logtext "System files permissions strengthen OK"
+Display --indent 4 --text "File permissions strengthen" --result "SUCCESS" --color GREEN
+
+
+#  ssh Banner
+logtextbreak
+logtext "Start set SSH Banner"
+echo “Authorized only. All activity will be monitored and reported” > /etc/ssh_banner
+chown bin:bin /etc/ssh_banner
+chmod 644 /etc/ssh_banner
+sed -i '/^Banner/d' /etc/ssh/sshd_config
+echo "Banner /etc/ssh_banner" >> /etc/ssh/sshd_config
+logtext "SSH Banner strengthen OK"
+Display --indent 4 --text "SSH Banner strengthen" --result "SUCCESS" --color GREEN
+
+
+# cron.log
+logtextbreak
+logtext "Start cron log strengthen"
+cat /etc/rsyslog.d/50-default.conf | grep ^cron > /dev/null
+if [ $? != 0 ]; then
+    echo "cron.*              /var/log/cron.log" >> /etc/rsyslog.d/50-default.conf
+fi
+systemctl restart rsyslog 2> /dev/null
+logtext "Cron log strengthen OK"
+Display --indent 4 --text "Cron log strengthen" --result "SUCCESS" --color GREEN
+
+
+# root login
+logtextbreak
+logtext "Start root login restict"
+# tty
+logtext "Restrict root login on secure tty"
+cat /etc/pam.d/login | grep "^auth" | grep pam_securetty > /dev/null
+if [ $? != 0 ]; then
+    sed -i '4iauth  required        pam_securetty.so' /etc/pam.d/login
+fi
+# ssh
+logtext "Do not permit root login via ssh"
+cat /etc/ssh/sshd_config |grep "^PermitRootLogin" > /dev/null
+if [ $? != 0 ]; then
+    echo "PermitRootLogin no" >> /etc/ssh/sshd_config
+  else
+    sed -i 's/^PermitRootLogin.*/PermitRootLogin no/g' /etc/ssh/sshd_config
+fi
+systemctl restart sshd 2> /dev/null
+# su
+logtext "Only allow wheel group user su root"
+cat /etc/pam.d/su  | grep "^auth"| grep "pam_wheel.so" | grep "group=wheel" > /dev/null
+if [ $? != 0 ]; then
+    sed -i '16iauth       required   pam_wheel.so group=wheel' /etc/pam.d/su
+fi
+logtext "Root login strengthen OK"
+Display --indent 4 --text "Root login strengthen" --result "SUCCESS" --color GREEN
+
+
+# Unneccessary boot service
+logtextbreak
+logtext "Disable unneccessary services: kshell time ntalk sendmail klogin \
+         printer nfslock echo discard chargen bootps tftp nfs daytime ypbind ident"
+KYDISABLE="kshell time ntalk sendmail klogin printer nfslock echo discard chargen \
+bootps tftp nfs daytime ypbind ident avahi-daemon binfmt-support cups-browsed cups ssh"
+for I in $KYDISABLE; do
+	systemctl disable $I 2> /dev/null
+done
+logtext "Disable unneccessary service OK"
+Display --indent 4 --text "Disable unneccessary service" --result "SUCCESS" --color GREEN
+
+
+# TMOUT
+logtextbreak
+logtext "Session auto logout after 10 minutes"
+cat /etc/profile| grep -v "^#" | grep TMOUT > /dev/null
+if [ $? != 0 ]; then
+    echo "export TMOUT=600" >> /etc/profile
+  else
+    sed -i 's/TMOUT.*/TMOUT=600/g' /etc/profile
+fi
+logtext "TMOUT strengthen OK"
+Display --indent 4 --text "TMOUT strengthen" --result "SUCCESS" --color GREEN
+
+
+# core dump
+logtextbreak
+logtext "Start core dump strengthen"
+sed -i '/soft    core*/d' /etc/security/limits.conf
+sed -i '/hard    core*/d' /etc/security/limits.conf
+echo "* hard core 0" >> /etc/security/limits.conf
+echo "* soft core 0" >> /etc/security/limits.conf
+logtext "Core dump strengthen OK"
+Display --indent 4 --text "Core dump strengthen" --result "SUCCESS" --color GREEN
+
+
+# Kernel Hardening
+logtextbreak
+# kernel
+logtext "Start Kernel hardening"
+logtext "core_users_pid=1"
+sed -icmp '/^kernel.core_uses_pid/d' /etc/sysctl.d/10-kernel-hardening.conf
+echo "kernel.core_uses_pid=1" >> /etc/sysctl.d/10-kernel-hardening.conf
+logtext "kernel.sysrq=0"
+sed -icmp '/^kernel.sysrq/d' /etc/sysctl.d/10-kernel-hardening.conf
+echo "kernel.sysrq=0" >> /etc/sysctl.d/10-kernel-hardening.conf
+sysctl -p /etc/sysctl.d/10-kernel-hardening.conf > /dev/null
+logtext "Kernel hardening OK"
+#net
+logtext "Start kernel net ipv4 strengthen"
+logtext "NO tcp_timestamps"
+sed -i '/^net.ipv4.tcp_timestamps/d' /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.tcp_timestamps=0" >> /etc/sysctl.d/10-network-security.conf
+logtext "NO ip forward"
+sed -i '/^net.ipv4.ip_forward/d' /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.ip_forward=0" >> /etc/sysctl.d/10-network-security.conf
+logtext "Ignore icmp echo broadcasts"
+sed -i '/^net.ipv4.icmp_echo_ignore_broadcasts/d' /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.icmp_echo_ignore_broadcasts=1" >> /etc/sysctl.d/10-network-security.conf
+logtext "allow log_martians"
+sed -i '/^net.ipv4.conf.all.log_martians/d' /etc/sysctl.d/10-network-security.conf
+sed -i '/^net.ipv4.conf.default.log_martians/d' /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.conf.all.log_martians=1" >> /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.conf.default.log_martians=1" >> /etc/sysctl.d/10-network-security.conf
+logtext "NO send redirects"
+sed -i '/^net.ipv4.conf.all.send_redirects/d' /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.conf.all.send_redirects=0" >> /etc/sysctl.d/10-network-security.conf
+logtext "NOT accept redirects"
+sed -i '/^net.ipv6.conf.all.accept_redirects/d' /etc/sysctl.d/10-network-security.conf
+sed -i '/^net.ipv6.conf.default.accept_redirects/d' /etc/sysctl.d/10-network-security.conf
+sed -i '/^net.ipv4.conf.default.accept_redirects/d' /etc/sysctl.d/10-network-security.conf
+sed -i '/^net.ipv4.conf.all.accept_redirects/d' /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.conf.all.accept_redirects=0" >> /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.conf.default.accept_redirects=0" >> /etc/sysctl.d/10-network-security.conf
+echo "net.ipv6.conf.all.accept_redirects=0" >> /etc/sysctl.d/10-network-security.conf
+echo "net.ipv6.conf.default.accept_redirects=0" >> /etc/sysctl.d/10-network-security.conf
+logtext "NOT accept source route"
+sed -i '/^net.ipv4.conf.all.accept_source_route/d' /etc/sysctl.d/10-network-security.conf
+sed -i '/^net.ipv4.conf.default.accept_source_route/d' /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.conf.all.accept_source_route=0" >> /etc/sysctl.d/10-network-security.conf
+echo "net.ipv4.conf.default.accept_source_route=0" >> /etc/sysctl.d/10-network-security.conf
+sysctl -p /etc/sysctl.d/10-network-security.conf > /dev/null
+logtext "Kernel net ipv4 strengthen OK"
+Display --indent 4 --text "Kernel net ipv4 strengthen" --result "SUCCESS" --color GREEN
+
+
+# History
+logtextbreak
+logtext "Start history strengthen"
+logtext "Set HISTSIZE 5"
+logtext "Set HISTFILESIZE 5"
+sed -i "/^HISTSIZE/d" /etc/profile
+sed -i "/^HISTFILESIZE/d" /etc/profile
+echo "HISTSIZE=5" >> /etc/profile
+echo "HISTFILESIZE=5" >> /etc/profile
+logtext "History command strengthen OK"
+Display --indent 4 --text "History command strengthen" --result "SUCCESS" --color GREEN
+
+
+# login failed attempts
+logtextbreak
+logtext "pam_tally2 support"
+if [ -f $KYLINDIR/tally2 ]; then
+    cp $KYLINDIR/tally2 /usr/share/pam-configs
+    pam-auth-update --add tally2
+    logtext "pam_tally2 OK"
+    Display --indent 4 --text "Login failed attempts strengthen" --result "SUCCESS" --color GREEN
+  else
+    logtext "NO kylin strengthen config found"
+    Display --indent 4 --text "Login failed attempts strengthen" --result "SUCCESS" --color GREEN
+fi
+
+# alias file
+logtextbreak
+logtext "Remove alias files"
+logtext "remove /etc/aliases"
+if [ -f /etc/aliases ]; then
+    mv /etc/aliases /etc/aliases.bk
+fi
+logtext "remove /etc/mail/aliases"
+if [ -f /etc/mail/aliases ]; then
+    mv /etc/mail/aliases /etc/mail/aliases.bk
+fi
+logtext "Alias file strengthen OK"
+Display --indent 4 --text "Alias file strengthen" --result "SUCCESS" --color GREEN
+
+
+# /etc/host.conf
+logtextbreak
+logtext "IP spoof and Multi IP strengthen"
+logtext "Nospoof on"
+logtext "Multi off"
+sed -i "/^multi/d" /etc/host.conf
+sed -i "/^nospoof/d" /etc/host.conf
+echo "multi off" >> /etc/host.conf
+echo "nospoof on" >> /etc/host.conf
+logtext "IP spoof and multi ip strengthen OK"
+Display --indent 4 --text "IP spoof strengthen" --result "SUCCESS" --color GREEN
+Display --indent 4 --text "Multi ip strengthen" --result "SUCCESS" --color GREEN
+
+
+# chkrootkit
+logtextbreak
+logtext "Start chkrootkit harden"
+dpkg -l | grep chkrootkit > /dev/null
+if [ $? != 0 ]; then
+    if [ -d $KYLINDIR ]; then 
+        logtext "installing chkrootkit"
+        dpkg -i $KYLINDIR/chkrootkit*.deb > /dev/null
+        logtext "Chkrootkit strengthen OK"
+        Display --indent 4 --text "Chkrootkit strengthen" --result "SUCCESS" --color GREEN
+      else
+        logtext "No Kylin strengthen config found"
+        Display --indent 4 --text "Chkrootkit strengthen" --result "NO CONFIG" --color WHITE
+    fi
+fi
+logtext "Chkrootkit already installed"
+Display --indent 4 --text "Chkrootkit strengthen" --result "SUCCESS" --color GREEN
+
+
+# vsftpd
+logtextbreak
+logtext "Start vsftpd strengthen"
+dpkg -l | grep vsftpd > /dev/null
+if [ $? != 0 ]; then
+    logtext "vsftpd not install"
+    Display --indent 4 --text "Vsftpd strengthen" --result "NOT FOUND" --color WHITE
+  else
+    logtext "Delete ftp user"
+    userdel ftp 2> /dev/null
+    logtext "Disable anonymous"
+    sed -i "/^anonymous_enable.*/anonymous_enable=NO/g" /etc/vsftpd.conf
+    logtext "Vsftpd strengthen OK"
+    Display --indent 4 --text "Vsftpd strengthen" --result "SUCCESS" --color GREEN
+fi
+
+# insecure_service
+logtextbreak
+logtext "Remove insecure services: inetd telnet ftpd snmpd snmp"
+dpkg -P openbsd-inetd   > /dev/null 2>&1
+dpkg -P telnet          > /dev/null 2>&1
+dpkg -P ftpd            > /dev/null 2>&1
+dpkg -P snmpd           > /dev/null 2>&1
+dpkg -P snmp            > /dev/null 2>&1
+logtext "Remove insecue services OK"
+Display --indent 4 --text "Remove insecue services" --result "SUCCESS" --color GREEN
+
+
+# IMMUTABLE file 
+logtextbreak
+logtext "Make cruicial system file immutable: passwd shadow group gshadow"
+chattr +i /etc/passwd
+chattr +i /etc/shadow
+chattr +i /etc/group
+chattr +i /etc/gshadow
+logtext "Crucial file IMUUTABLE OK"
+Display --indent 4 --text "Crucial file IMMUTABLE" --result "SUCCESS" --color GREEN
+

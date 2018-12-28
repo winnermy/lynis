@@ -1,0 +1,9 @@
+Name: Check for Account Login Attempt Failed
+Default: yes
+Priority: 512
+Auth-Type: Primary
+Auth:
+	required			pam_tally2.so onerr=fail deny=5 unlock_time=600 even_deny_root root_unlock_time=600 audit
+Account-Type: Primary
+Account:
+	required			pam_tally2.so

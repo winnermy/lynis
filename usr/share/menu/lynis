@@ -1,0 +1,5 @@
+?package(lynis):needs="text" section="Applications/System/Security" \
+  title="lynis auditing tool" \
+  longtitle="Security auditing tool (root)" \
+  command="su-to-root -c '/usr/sbin/lynis --no-colors'"
+
